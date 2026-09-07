@@ -1,0 +1,964 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+ 
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#3b82f6">
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('Service Worker registrato con successo!', reg))
+        .catch(err => console.error('Errore nella registrazione del Service Worker:', err));
+    });
+  }
+</script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Planner Studio - Advanced Edition</title>
+  <!-- Chart.js per le statistiche -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- KaTeX per il supporto alle formule LaTeX -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.js"></script>
+  <style>
+    :root {
+      --bg: #f8fafc;
+      --card-bg: #ffffff;
+      --text: #0f172a;
+      --text-muted: #64748b;
+      --border: #e2e8f0;
+      --primary: #3b82f6;
+      --primary-hover: #2563eb;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --success: #10b981;
+      --purple: #8b5cf6;
+      --radius: 12px;
+    }
+
+    [data-theme="dark"] {
+      --bg: #0f172a;
+      --card-bg: #1e293b;
+      --text: #f8fafc;
+      --text-muted: #94a3b8;
+      --border: #334155;
+      --primary: #3b82f6;
+      --primary-hover: #60a5fa;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+      transition: background-color 0.3s, color 0.3s;
+    }
+
+    header {
+      max-width: 1300px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 24px 24px 0 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .header-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+    .app-container {
+      display: grid;
+      grid-template-columns: 350px 1fr;
+      width: 100%;
+      max-width: 1300px;
+      margin: 0 auto;
+      gap: 24px;
+      padding: 24px;
+    }
+
+    @media (max-width: 950px) {
+      .app-container { grid-template-columns: 1fr; }
+    }
+
+    .sidebar { display: flex; flex-direction: column; gap: 20px; }
+    
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+
+    h2 { font-size: 1.15rem; font-weight: 600; margin-bottom: 14px; color: var(--text); display: flex; justify-content: space-between; align-items: center; }
+    
+    .form-group { margin-bottom: 12px; }
+    label { display: block; font-size: 0.8rem; font-weight: 600; color: var(--text-muted); margin-bottom: 4px; }
+    input, select, textarea {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 0.9rem;
+      outline: none;
+      background: var(--card-bg);
+      color: var(--text);
+      font-family: inherit;
+      transition: border 0.2s;
+    }
+    input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+
+    button { font-family: inherit; cursor: pointer; }
+
+    .btn-submit {
+      width: 100%;
+      background: var(--primary);
+      color: white;
+      border: none;
+      padding: 10px;
+      border-radius: 8px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .btn-submit:hover { background: var(--primary-hover); }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .btn-secondary:hover { border-color: var(--primary); }
+
+    .btn-hardcore {
+      background: #7c3aed;
+      color: white;
+      border: none;
+      padding: 8px 14px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.85rem;
+    }
+    .btn-hardcore:hover { background: #6d28d9; }
+
+    /* Gamification Widgets */
+    .user-profile {
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      color: white;
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 12px;
+    }
+    .user-level { font-size: 1.2rem; font-weight: 700; }
+    .xp-bar-bg { background: rgba(255,255,255,0.3); height: 8px; border-radius: 4px; margin-top: 8px; overflow: hidden; }
+    .xp-bar-fill { background: #10b981; height: 100%; width: 0%; transition: width 0.3s; }
+    .badges-wrapper { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+    .badge-chip { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 600; }
+
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+    .stat-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      text-align: center;
+    }
+    .stat-value { font-size: 1.3rem; font-weight: 700; color: var(--primary); }
+    .stat-label { font-size: 0.7rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+
+    /* Timer & Audio Hardcore */
+    .pomodoro-box { text-align: center; }
+    .timer-display {
+      font-size: 2.2rem;
+      font-weight: 800;
+      letter-spacing: 1px;
+      margin: 8px 0;
+      color: var(--primary);
+    }
+    .timer-presets { display: flex; gap: 6px; justify-content: center; margin-bottom: 10px; flex-wrap: wrap; }
+    .timer-controls { display: flex; gap: 8px; justify-content: center; }
+
+    /* Mood tracker */
+    .mood-selector { display: flex; gap: 6px; margin-top: 6px; }
+    .btn-mood {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    .btn-mood.selected { border-color: var(--primary); background: rgba(59, 130, 246, 0.1); }
+
+    /* Area principale */
+    .main-content { display: flex; flex-direction: column; gap: 20px; }
+
+    /* Stima Esame Box */
+    .exam-estimation-box {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--purple);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    /* Grafici */
+    .charts-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    @media (max-width: 700px) { .charts-grid { grid-template-columns: 1fr; } }
+    .chart-container { position: relative; height: 180px; width: 100%; }
+
+    /* Cards e Tabella */
+    .due-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--primary);
+      border-radius: var(--radius);
+      padding: 14px 18px;
+      margin-bottom: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .due-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .tag-badge {
+      display: inline-block;
+      background: #f3e8ff;
+      color: #6b21a8;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 6px;
+    }
+
+    [data-theme="dark"] .tag-badge { background: #581c87; color: #f3e8ff; }
+
+    .score-buttons { display: flex; gap: 4px; }
+    .btn-score {
+      width: 28px;
+      height: 28px;
+      border: none;
+      border-radius: 6px;
+      font-weight: 700;
+      color: white;
+      font-size: 0.8rem;
+    }
+    .score-1, .score-2 { background-color: var(--danger); }
+    .score-3 { background-color: var(--warning); }
+    .score-4, .score-5 { background-color: var(--success); }
+
+    /* Tabella */
+    .table-container { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.85rem; }
+    th { color: var(--text-muted); font-weight: 600; padding: 10px; border-bottom: 1px solid var(--border); }
+    td { padding: 10px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+    
+    .action-cell { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+    .btn-action {
+      background: none;
+      border: 1px solid var(--border);
+      padding: 4px 6px;
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    .btn-action:hover { background: var(--border); }
+
+    .filter-bar { display: flex; gap: 8px; margin-bottom: 12px; align-items: center; }
+
+    .empty-state { text-align: center; padding: 24px; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Planner Studio Pro</h1>
+    <div class="header-actions">
+      <button class="btn-secondary" onclick="sharePlanLink()">🔗 Condividi Piano</button>
+      <button class="btn-hardcore" onclick="toggleHardcoreMode()">⚡ Modalità Hardcore Focus</button>
+      <button class="btn-secondary" onclick="toggleTheme()">🌙 Dark Mode</button>
+    </div>
+  </header>
+
+  <div class="app-container">
+    
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      
+      <!-- Profilo e XP Gamification -->
+      <div class="user-profile">
+        <div style="font-size: 0.8rem; opacity: 0.9;">GRADO STUDIO</div>
+        <div class="user-level" id="userTitle">Novizio</div>
+        <div style="font-size: 0.75rem; margin-top: 4px;" id="xpText">0 / 100 XP</div>
+        <div class="xp-bar-bg"><div class="xp-bar-fill" id="xpFill"></div></div>
+        <div class="badges-wrapper" id="badgeContainer"></div>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-value" id="statDue">0</div>
+          <div class="stat-label">Da Ripassare</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="statTotal">0</div>
+          <div class="stat-label">Totale Argomenti</div>
+        </div>
+      </div>
+
+      <!-- Timer Focus con Tracciamento ed Audio Sottofondo -->
+      <div class="card pomodoro-box">
+        <h2>Timer Focus</h2>
+        <div class="form-group" style="text-align: left;">
+          <label for="timerTopicSelect">Materia da Studiare</label>
+          <select id="timerTopicSelect">
+            <option value="">Studio Generico</option>
+          </select>
+        </div>
+        <div class="form-group" style="text-align: left;">
+          <label for="bgAudioSelect">Sottofondo Rilassante</label>
+          <select id="bgAudioSelect" onchange="changeAudioTrack(this.value)">
+            <option value="none">Nessun Audio</option>
+            <option value="white">Rumore Bianco</option>
+            <option value="rain">Pioggia Rilassante</option>
+          </select>
+        </div>
+        <div class="timer-presets">
+          <button class="btn-secondary" onclick="setTimerMinutes(25)">25m (Pomodoro)</button>
+          <button class="btn-secondary" onclick="setTimerMinutes(50)">50m (Metodo 50/10)</button>
+          <button class="btn-secondary" onclick="setTimerMinutes(10)">10m Pausa</button>
+        </div>
+        <div class="timer-display" id="timerDisplay">25:00</div>
+        <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 8px;" id="sessionCounterText">Sessioni completate: 0/4</div>
+        <div class="timer-controls">
+          <button class="btn-secondary" onclick="startTimer()">Start</button>
+          <button class="btn-secondary" onclick="pauseTimer()">Pausa</button>
+          <button class="btn-secondary" onclick="resetTimer()">Reset</button>
+        </div>
+      </div>
+
+      <!-- Form Nuovo Argomento -->
+      <div class="card">
+        <h2 id="formTitle">Nuovo Argomento</h2>
+        <input type="hidden" id="editTopicId" value="">
+        <div class="form-group">
+          <label for="course">Materia / Corso</label>
+          <input type="text" id="course" placeholder="Es. Fisica">
+        </div>
+        <div class="form-group">
+          <label for="topic">Capitolo / Argomento (Supporta LaTeX $$...$$)</label>
+          <input type="text" id="topic" placeholder="Es. Formula $$E = mc^2$$">
+        </div>
+        <div class="form-group">
+          <label for="tags">Tag (es. #Esame, #Facile)</label>
+          <input type="text" id="tags" placeholder="Es. #Esame #DaRivedere">
+        </div>
+        <button class="btn-submit" id="submitBtn" onclick="addOrUpdateTopic()">Aggiungi al Piano</button>
+      </div>
+
+    </aside>
+
+    <!-- Contenuto Principale -->
+    <main class="main-content">
+      
+      <!-- Stima Tempo Esame -->
+      <section class="exam-estimation-box">
+        <div>
+          <strong style="font-size: 0.95rem;">🎯 Prossimo Esame</strong>
+          <div style="font-size: 0.8rem; color: var(--text-muted);" id="examRemainingText">Imposta la data dell'esame per calcolare il tempo stimato.</div>
+        </div>
+        <div>
+          <input type="date" id="examDate" onchange="calculateExamEstimate()" style="width: auto;">
+        </div>
+      </section>
+
+      <!-- Dashboard Grafici -->
+      <section class="card">
+        <h2>Statistiche & Progressi</h2>
+        <div class="charts-grid">
+          <div>
+            <div class="chart-container">
+              <canvas id="timeChart"></canvas>
+            </div>
+          </div>
+          <div>
+            <div class="chart-container">
+              <canvas id="progressChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Sessione di Oggi -->
+      <section class="card">
+        <h2>Sessione di Oggi</h2>
+        <div id="dueContainer"></div>
+      </section>
+
+      <!-- Panoramica Tabella -->
+      <section class="card">
+        <h2>Tutti gli Argomenti</h2>
+        <div class="filter-bar">
+          <label for="tagFilter" style="font-size: 0.8rem;">Filtra per Tag:</label>
+          <select id="tagFilter" onchange="renderTable()" style="width: 200px;">
+            <option value="ALL">Tutti i Tag</option>
+          </select>
+        </div>
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Materia</th>
+                <th>Argomento</th>
+                <th>Tag</th>
+                <th>Prossimo Ripasso</th>
+                <th>Ripetizioni</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody id="allTopicsContainer"></tbody>
+          </table>
+        </div>
+      </section>
+
+    </main>
+
+  </div>
+
+  <script>
+    let topics = JSON.parse(localStorage.getItem('study_topics_v3') || '[]');
+    let studyTimeByCourse = JSON.parse(localStorage.getItem('study_time_v3') || '{}');
+    let userGamification = JSON.parse(localStorage.getItem('user_xp_v3') || '{"xp": 0, "level": 1, "badges": []}');
+    let completedSessionsCount = parseInt(localStorage.getItem('completed_sessions_v3') || '0');
+
+    let timer = null;
+    let selectedMinutes = 25;
+    let timeLeft = selectedMinutes * 60;
+    let isDark = localStorage.getItem('theme') === 'dark';
+
+    let timeChartInstance = null;
+    let progressChartInstance = null;
+    let audioContext = null;
+    let noiseNode = null;
+    let currentSelectedMood = '😊';
+
+    if (isDark) document.documentElement.setAttribute('data-theme', 'dark');
+
+    // Importa il piano dal link se presente nei parametri dell'URL
+    window.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const sharedData = urlParams.get('planData');
+      if (sharedData) {
+        try {
+          const importedTopics = JSON.parse(decodeURIComponent(atob(sharedData)));
+          if (confirm(`Trovato un piano condiviso con ${importedTopics.length} argomenti. Vuoi importarlo?`)) {
+            topics = importedTopics;
+            save();
+            window.history.replaceState({}, document.title, window.location.pathname);
+          }
+        } catch (e) {
+          alert('Link di condivisione non valido o corrotto.');
+        }
+      }
+    });
+
+    function sharePlanLink() {
+      if (topics.length === 0) return alert('Nessun argomento da condividere.');
+      const encoded = btoa(encodeURIComponent(JSON.stringify(topics)));
+      const shareUrl = `${window.location.origin}${window.location.pathname}?planData=${encoded}`;
+      navigator.clipboard.writeText(shareUrl).then(() => {
+        alert('Link del piano copiato negli appunti! Invialo ai tuoi compagni di studio.');
+      }).catch(() => {
+        prompt('Copia manualmente questo link di condivisione:', shareUrl);
+      });
+    }
+
+    function toggleTheme() {
+      isDark = !isDark;
+      if (isDark) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+        localStorage.setItem('theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+        localStorage.setItem('theme', 'light');
+      }
+      renderCharts();
+    }
+
+    function toggleHardcoreMode() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(e => alert(e.message));
+      } else {
+        document.exitFullscreen();
+      }
+    }
+
+    function changeAudioTrack(type) {
+      if (noiseNode) {
+        noiseNode.stop();
+        noiseNode = null;
+      }
+      if (type === 'none') return;
+
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+
+      const bufferSize = audioContext.sampleRate * 2;
+      const buffer = audioContext.createBuffer(1, bufferSize, audioContext.sampleRate);
+      const data = buffer.getChannelData(0);
+
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+
+      noiseNode = audioContext.createBufferSource();
+      noiseNode.buffer = buffer;
+      noiseNode.loop = true;
+
+      const gainNode = audioContext.createGain();
+      gainNode.gain.value = type === 'rain' ? 0.03 : 0.015;
+
+      noiseNode.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+      noiseNode.start();
+    }
+
+    function addXP(points) {
+      userGamification.xp += points;
+      const nextLevelXP = userGamification.level * 100;
+
+      if (userGamification.xp >= nextLevelXP) {
+        userGamification.level++;
+        alert(`🎉 Complimenti! Sei salito al Livello ${userGamification.level}!`);
+      }
+
+      const totalHours = Object.values(studyTimeByCourse).reduce((a, b) => a + b, 0) / 60;
+      if (totalHours >= 5 && !userGamification.badges.includes("🏆 5 Ore Studiate")) {
+        userGamification.badges.push("🏆 5 Ore Studiate");
+      }
+      if (topics.length >= 10 && !userGamification.badges.includes("📚 Collezionista di Argomenti")) {
+        userGamification.badges.push("📚 Collezionista di Argomenti");
+      }
+
+      localStorage.setItem('user_xp_v3', JSON.stringify(userGamification));
+      renderGamification();
+    }
+
+    function renderGamification() {
+      const titles = ["Novizio", "Studioso", "Esperto", "Maestro del Ripasso", "Luminare dello Studio"];
+      const titleIndex = Math.min(userGamification.level - 1, titles.length - 1);
+      
+      document.getElementById('userTitle').textContent = `Lvl ${userGamification.level} - ${titles[titleIndex]}`;
+      const currentLevelXP = userGamification.xp % 100;
+      document.getElementById('xpText').textContent = `${currentLevelXP} / 100 XP`;
+      document.getElementById('xpFill').style.width = `${currentLevelXP}%`;
+
+      const badgeWrapper = document.getElementById('badgeContainer');
+      badgeWrapper.innerHTML = userGamification.badges.map(b => `<span class="badge-chip">${b}</span>`).join('');
+    }
+
+    function openGemini(course, title) {
+      const prompt = `Spiegami in modo chiaro, schematizzato ed esaustivo l'argomento "${title}" per la materia "${course}". Includi i punti chiave da ricordare per un esame.`;
+      window.open(`https://gemini.google.com/app?q=${encodeURIComponent(prompt)}`, '_blank');
+    }
+
+    function openGeminiQuiz(course, title) {
+      const prompt = `Genera un mini-quiz a scelta multipla (3-5 domande con soluzioni spiegate alla fine) per verificare la mia preparazione sull'argomento "${title}" della materia "${course}".`;
+      window.open(`https://gemini.google.com/app?q=${encodeURIComponent(prompt)}`, '_blank');
+    }
+
+    function setTimerMinutes(mins) {
+      pauseTimer();
+      selectedMinutes = mins;
+      timeLeft = mins * 60;
+      updateTimerDisplay();
+    }
+
+    function updateTimerDisplay() {
+      const minutes = Math.floor(timeLeft / 60);
+      const seconds = timeLeft % 60;
+      document.getElementById('timerDisplay').textContent = 
+        `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      document.getElementById('sessionCounterText').textContent = `Sessioni completate: ${completedSessionsCount}/4`;
+    }
+
+    function startTimer() {
+      if (timer) return;
+      timer = setInterval(() => {
+        if (timeLeft > 0) {
+          timeLeft--;
+          updateTimerDisplay();
+        } else {
+          clearInterval(timer);
+          timer = null;
+          recordStudiedTime();
+          completedSessionsCount++;
+          localStorage.setItem('completed_sessions_v3', completedSessionsCount);
+          addXP(20);
+
+          if (completedSessionsCount >= 4) {
+            alert('🎉 Hai completato 4 sessioni! È il momento di fare una pausa lunga di 15-30 minuti.');
+            completedSessionsCount = 0;
+            localStorage.setItem('completed_sessions_v3', 0);
+          } else {
+            alert('Sessione completata! Hai guadagnato 20 XP.');
+          }
+          updateTimerDisplay();
+        }
+      }, 1000);
+    }
+
+    function pauseTimer() {
+      clearInterval(timer);
+      timer = null;
+    }
+
+    function resetTimer() {
+      pauseTimer();
+      timeLeft = selectedMinutes * 60;
+      updateTimerDisplay();
+    }
+
+    function recordStudiedTime() {
+      const courseSelect = document.getElementById('timerTopicSelect');
+      const courseName = courseSelect.value || 'Studio Generico';
+      studyTimeByCourse[courseName] = (studyTimeByCourse[courseName] || 0) + selectedMinutes;
+      localStorage.setItem('study_time_v3', JSON.stringify(studyTimeByCourse));
+      renderCharts();
+    }
+
+    function calculateExamEstimate() {
+      const dateVal = document.getElementById('examDate').value;
+      if (!dateVal) return;
+
+      const examDate = new Date(dateVal);
+      const today = new Date();
+      const diffDays = Math.ceil((examDate - today) / (1000 * 60 * 60 * 24));
+
+      const uncompletedTopics = topics.filter(t => t.repetitions < 3).length;
+      const estimatedHoursLeft = Math.round(uncompletedTopics * 1.5);
+
+      if (diffDays <= 0) {
+        document.getElementById('examRemainingText').textContent = "L'esame è oggi o è già passato!";
+      } else {
+        document.getElementById('examRemainingText').textContent = 
+          `Mancano ${diffDays} giorni. Stima tempo necessario: ~${estimatedHoursLeft} ore totali.`;
+      }
+    }
+
+    function save() {
+      localStorage.setItem('study_topics_v3', JSON.stringify(topics));
+      render();
+    }
+
+    function addOrUpdateTopic() {
+      const editId = document.getElementById('editTopicId').value;
+      const course = document.getElementById('course').value.trim();
+      const title = document.getElementById('topic').value.trim();
+      const tags = document.getElementById('tags').value.trim();
+
+      if (!course || !title) return alert('Compila materia e argomento.');
+
+      if (editId) {
+        const topic = topics.find(t => t.id === editId);
+        if (topic) {
+          topic.course = course;
+          topic.title = title;
+          topic.tags = tags;
+        }
+      } else {
+        const newTopic = {
+          id: Date.now().toString(),
+          course,
+          title,
+          tags,
+          qualityScore: 3,
+          easeFactor: 2.5,
+          intervalDays: 0,
+          repetitions: 0,
+          nextReviewDate: new Date().toISOString()
+        };
+        topics.push(newTopic);
+      }
+
+      resetForm();
+      save();
+    }
+
+    function editTopic(id) {
+      const topic = topics.find(t => t.id === id);
+      if (!topic) return;
+
+      document.getElementById('editTopicId').value = topic.id;
+      document.getElementById('course').value = topic.course;
+      document.getElementById('topic').value = topic.title;
+      document.getElementById('tags').value = topic.tags || '';
+      
+      document.getElementById('formTitle').textContent = "Modifica Argomento";
+      document.getElementById('submitBtn').textContent = "Salva Modifiche";
+    }
+
+    function resetForm() {
+      document.getElementById('editTopicId').value = '';
+      document.getElementById('course').value = '';
+      document.getElementById('topic').value = '';
+      document.getElementById('tags').value = '';
+      document.getElementById('formTitle').textContent = "Nuovo Argomento";
+      document.getElementById('submitBtn').textContent = "Aggiungi al Piano";
+    }
+
+    function deleteTopic(id) {
+      if (confirm('Vuoi eliminare questo argomento?')) {
+        topics = topics.filter(t => t.id !== id);
+        save();
+      }
+    }
+
+    function setMood(btn, mood) {
+      currentSelectedMood = mood;
+      const parent = btn.parentElement;
+      parent.querySelectorAll('.btn-mood').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    }
+
+    function completeSession(id, qualityScore) {
+      const topic = topics.find(t => t.id === id);
+      if (!topic) return;
+
+      topic.qualityScore = qualityScore;
+      topic.lastMood = currentSelectedMood;
+      let { easeFactor, intervalDays, repetitions } = topic;
+
+      easeFactor = easeFactor + (0.1 - (5 - qualityScore) * (0.08 + (5 - qualityScore) * 0.02));
+      if (easeFactor < 1.3) easeFactor = 1.3;
+
+      if (qualityScore < 3) {
+        repetitions = 0;
+        intervalDays = 1;
+      } else {
+        if (repetitions === 0) intervalDays = 1;
+        else if (repetitions === 1) intervalDays = 3;
+        else if (repetitions === 2) intervalDays = 7;
+        else intervalDays = Math.round(intervalDays * easeFactor);
+        repetitions += 1;
+      }
+
+      const nextDate = new Date();
+      nextDate.setDate(nextDate.getDate() + intervalDays);
+
+      topic.easeFactor = easeFactor;
+      topic.intervalDays = intervalDays;
+      topic.repetitions = repetitions;
+      topic.nextReviewDate = nextDate.toISOString();
+
+      addXP(15);
+      save();
+    }
+
+    function formatDate(isoString) {
+      const d = new Date(isoString);
+      const today = new Date();
+      if (d <= today) return "Oggi";
+      return d.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }
+
+    function renderFormattedText(text) {
+      // Semplice supporto LaTeX tramite KaTeX se racchiuso in $$
+      return text.replace(/\$\$(.*?)\$\$/g, (match, formula) => {
+        try {
+          return katex.renderToString(formula, { throwOnError: false });
+        } catch (e) {
+          return match;
+        }
+      });
+    }
+
+    function updateCourseDropdown() {
+      const select = document.getElementById('timerTopicSelect');
+      const courses = [...new Set(topics.map(t => t.course))];
+      select.innerHTML = '<option value="">Studio Generico</option>' + 
+        courses.map(c => `<option value="${c}">${c}</option>`).join('');
+    }
+
+    function updateTagFilterDropdown() {
+      const select = document.getElementById('tagFilter');
+      const allTags = new Set();
+      topics.forEach(t => {
+        if (t.tags) {
+          t.tags.split(' ').forEach(tag => { if(tag.trim()) allTags.add(tag.trim()); });
+        }
+      });
+
+      const currentValue = select.value;
+      select.innerHTML = '<option value="ALL">Tutti i Tag</option>' + 
+        [...allTags].map(t => `<option value="${t}">${t}</option>`).join('');
+      select.value = currentValue;
+    }
+
+    function renderCharts() {
+      const textColor = isDark ? '#f8fafc' : '#0f172a';
+
+      const ctxTime = document.getElementById('timeChart').getContext('2d');
+      const timeLabels = Object.keys(studyTimeByCourse);
+      const timeData = Object.values(studyTimeByCourse);
+
+      if (timeChartInstance) timeChartInstance.destroy();
+      timeChartInstance = new Chart(ctxTime, {
+        type: 'bar',
+        data: {
+          labels: timeLabels.length ? timeLabels : ['Nessun dato'],
+          datasets: [{
+            label: 'Minuti Studiati',
+            data: timeData.length ? timeData : [0],
+            backgroundColor: '#3b82f6'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false }, title: { display: true, text: 'Minuti per Materia', color: textColor } },
+          scales: {
+            x: { ticks: { color: textColor } },
+            y: { ticks: { color: textColor } }
+          }
+        }
+      });
+
+      const ctxProgress = document.getElementById('progressChart').getContext('2d');
+      const completed = topics.filter(t => t.repetitions > 0).length;
+      const pending = topics.length - completed;
+
+      if (progressChartInstance) progressChartInstance.destroy();
+      progressChartInstance = new Chart(ctxProgress, {
+        type: 'doughnut',
+        data: {
+          labels: ['Gia Ripassati', 'Da Avviare'],
+          datasets: [{
+            data: topics.length ? [completed, pending] : [0, 1],
+            backgroundColor: ['#10b981', '#e2e8f0']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { labels: { color: textColor } },
+            title: { display: true, text: 'Stato degli Argomenti', color: textColor }
+          }
+        }
+      });
+    }
+
+    function renderTable() {
+      const allContainer = document.getElementById('allTopicsContainer');
+      const filterTag = document.getElementById('tagFilter').value;
+
+      let filteredTopics = topics;
+      if (filterTag !== 'ALL') {
+        filteredTopics = topics.filter(t => t.tags && t.tags.includes(filterTag));
+      }
+
+      if (filteredTopics.length === 0) {
+        allContainer.innerHTML = '<tr><td colspan="6" class="empty-state">Nessun argomento trovato.</td></tr>';
+      } else {
+        allContainer.innerHTML = filteredTopics.map(t => `
+          <tr>
+            <td><strong>${t.course}</strong></td>
+            <td><strong>${renderFormattedText(t.title)}</strong></td>
+            <td>${t.tags ? t.tags.split(' ').map(tg => `<span class="tag-badge">${tg}</span>`).join('') : '-'}</td>
+            <td>${formatDate(t.nextReviewDate)}</td>
+            <td>${t.repetitions} ${t.lastMood ? `<span title="Ultimo stato d'animo">${t.lastMood}</span>` : ''}</td>
+            <td>
+              <div class="action-cell">
+                <button class="btn-action" title="Fatto" onclick="completeSession('${t.id}', 5)">✅</button>
+                <button class="btn-action" title="Spiega con AI" onclick="openGemini('${t.course}', '${t.title}')">✨ AI</button>
+                <button class="btn-action" title="Quiz AI" onclick="openGeminiQuiz('${t.course}', '${t.title}')">❓ Quiz</button>
+                <button class="btn-action" title="Modifica" onclick="editTopic('${t.id}')">✏️</button>
+                <button class="btn-action" title="Elimina" style="color:var(--danger)" onclick="deleteTopic('${t.id}')">🗑️</button>
+              </div>
+            </td>
+          </tr>
+        `).join('');
+      }
+    }
+
+    function render() {
+      const dueContainer = document.getElementById('dueContainer');
+      const now = new Date();
+
+      const due = topics.filter(t => new Date(t.nextReviewDate) <= now);
+
+      document.getElementById('statDue').textContent = due.length;
+      document.getElementById('statTotal').textContent = topics.length;
+
+      updateCourseDropdown();
+      updateTagFilterDropdown();
+      renderGamification();
+      calculateExamEstimate();
+
+      if (due.length === 0) {
+        dueContainer.innerHTML = '<div class="empty-state">Nessun ripasso in programma per oggi! 🎉</div>';
+      } else {
+        dueContainer.innerHTML = due.map(t => `
+          <div class="due-card">
+            <div class="due-card-header">
+              <div>
+                <span style="font-weight:700; color:var(--primary); font-size:0.8rem;">${t.course}</span>
+                <div style="font-size:1.05rem; font-weight:600;">${renderFormattedText(t.title)}</div>
+                <div style="margin-top: 6px;">
+                  <span style="font-size:0.7rem; color:var(--text-muted);">Come ti senti?</span>
+                  <div class="mood-selector">
+                    <button class="btn-mood selected" onclick="setMood(this, '😊')">😊 Produttivo</button>
+                    <button class="btn-mood" onclick="setMood(this, '😐')">😐 Normale</button>
+                    <button class="btn-mood" onclick="setMood(this, '😵')">😵 Esausto</button>
+                    <button class="btn-mood" onclick="setMood(this, '❓')">❓ Confuso</button>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+                <span style="font-size:0.7rem; color:var(--text-muted);">Valuta Ripasso:</span>
+                <div class="score-buttons">
+                  <button class="btn-score score-1" onclick="completeSession('${t.id}', 1)">1</button>
+                  <button class="btn-score score-2" onclick="completeSession('${t.id}', 2)">2</button>
+                  <button class="btn-score score-3" onclick="completeSession('${t.id}', 3)">3</button>
+                  <button class="btn-score score-4" onclick="completeSession('${t.id}', 4)">4</button>
+                  <button class="btn-score score-5" onclick="completeSession('${t.id}', 5)">5</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      renderTable();
+      renderCharts();
+    }
+
+    render();
+  </script>
+</body>
+</html>
